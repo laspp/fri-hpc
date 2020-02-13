@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# 2020-02-05 fix encryption error processing
+# 2020-01-21 add encryption
+
 # prerequisites
 
 if ! ssl_loc="$(type -p "openssl")" || [ -z "$ssl_loc" ] ; then
@@ -41,7 +44,7 @@ USAGE:
  $0 [ -N <name> -E <email> -D <dept> -T <phone> ] \\
     -P <request file>
 
- $0 -r <cert-num> -K >private-key-file>
+ $0 -r <cert-num> -K <private-key-file>
 
 
  -h help:      show this help
@@ -54,6 +57,7 @@ USAGE:
                request a server-client certificate
  -u user-mode: request a user certificate
                (instead of the default web server certificate)
+ -e noencrypt: do not encrypt key for user certificates
  -n named:     request a named certificate type (i.e. Mail Server)
 
  -p post:      post the request directly to the web form
@@ -90,7 +94,7 @@ Please use the certificate serial from the web page or the notification email, s
 1111 in this link:
 https://signet-ca.ijs.si:443/cgi-bin/pub/pki?cmd=getcert&key=1111&type=CERTIFICATE
 
-    $0 -r 1111 -k Johnny_Smith-YYYY-MM-DD.key 
+    $0 -r 1111 -K Johnny_Smith-YYYY-MM-DD.key 
 
     Results in:
       ./Johnny_Smith-YYYY-MM-DD.crt - certificate file in pem format
@@ -125,7 +129,7 @@ Generate and post a server certificate request:
     }
 
 OPTIND=1
-while getopts "h?cun:k:pP:r:K:d:N:E:D:T:" opt; do
+while getopts "h?cuen:k:pP:r:K:d:N:E:D:T:" opt; do
     case "$opt" in
     h|\?)
         usage ;
@@ -139,8 +143,10 @@ while getopts "h?cun:k:pP:r:K:d:N:E:D:T:" opt; do
     u)  type='User'
 	exkeyusage='clientAuth, emailProtection, 1.3.6.1.4.1.311.20.2.2';
 	keyusage='digitalSignature, keyEncipherment'
-	echo USER mode
+	echo "USER mode; you will be prompeted for a passphrase to protect your private key."
         ;;
+    e)  noencrypt=1;
+	;;
     n)  type=$OPTARG;
 	;;
     k)  keysize=$OPTARG;
@@ -226,7 +232,7 @@ elif [[ $retrieve && -r $keyfile ]] ; then
 	exit 1
     fi
 fi 
-
+# end of retrieval, now to request stuff
     
 # parse arguments
 if [[ $requestfile && ! -r $requestfile ]] ; then
@@ -332,19 +338,35 @@ ENDFILE
 	-keyout "$KEY" -out "$CRS"
 
     RES="$?"
-    test "$RES" || rm -f "$KEY" "$CRS" "$CONF"
-    test "$RES" || echo 'Aborting...'
-    test "$RES" || $RES
+    test "$RES" -eq 0 || rm -f "$KEY" "$CRS" "$CONF"
+    test "$RES" -eq 0 || echo 'Failed to generate request. Aborting...'
+    test "$RES" -eq 0 || exit $RES
 
     chmod o-rwx "$KEY"
 
     echo Generated $type certificate request "$CRS" and private key "$KEY" .
     rm $CONF
+
+    if [[ $type == 'User' && -z $noencrypt ]] ; then
+	echo "Please enter the passphrase for the private key."
+	echo "You will need the passphrase when using the certificate"
+	echo "and when you will convert the certificate for browser import."
+	mv -v "$KEY" "$KEY.in"
+	openssl rsa -aes256 -in "$KEY.in" -out "$KEY"
+        RES="$?"
+	echo "Returned: $RES"
+	test "$RES" -eq 0 || rm -f "$KEY" "$CRS" "$CONF"
+	test "$RES" -eq 0 || echo 'Failed to encrypt the key. Aborting...'
+	test "$RES" -eq 0 || exit $RES
+	chmod o-rwx "$KEY"
+	rm -f "$KEY.in"
+	echo Encrypted the private key "$KEY".
+    fi
 else
     # use preexisting request
     CRS=$requestfile
 fi
-    
+
 # process the post
 if [ $post -gt 0 ]
 then
@@ -385,6 +407,9 @@ then
     else
 	echo "Warning: request for $CN not posted (failure, output left in $RESP)."
     fi
+else
+    echo "The generated request "$CRS" has not been posted."
+    echo "Please post the request on the on-line form at http://signet-ca.ijs.si/pub/"
 fi
 
 exit
