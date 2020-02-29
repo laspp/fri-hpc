@@ -1,4 +1,16 @@
-# Singularity containers
+# Singularity - OpenCL example
+
+This example shows a Singularity recipe for a container which can be used to compile and execute OpenCL programs
+## To build
+```
+sudo singularity build my_singularity_env.simg OpenCL-dev.recipe
+```
+## To use
+```
+singularity exec --nv my_singularity_env.simg sh program.sh
+```
+
+# Singularity - custom environment
 
 This example shows how to use Singularity containers as portable environment containers.
 Take a look under the following link for more details on how to create an image of a container.
