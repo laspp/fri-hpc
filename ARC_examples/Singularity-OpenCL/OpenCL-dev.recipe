@@ -1,0 +1,10 @@
+Bootstrap: docker
+From: nvidia/opencl
+
+%help
+This recipe builds an OpenCL development environment with build essentials (C/C++ compiler) and required OpenCL headers.
+
+%post
+    apt-get update
+    apt-get install -y build-essential
+    apt-get install -y opencl-headers

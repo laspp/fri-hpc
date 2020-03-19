@@ -1,0 +1,30 @@
+&
+(* Initial script to be ran *)
+(executable = "job.sh")
+
+(* File to be copied over to grid nodes. Relative to arcsub command working directory *)
+(inputfiles =
+  ("job.sh" "")
+  ("my_singularity_env.simg" "")
+  ("program.sh" "")
+  ("main.cpp" "")
+)
+
+(* Job name *)
+(jobname=singularity_env_test)
+
+(* Standard input and output files *)
+(stdout=job.out)
+(stderr=job.err)
+
+(* Arguments *)
+(arguments= "")
+
+(* Number of requested processors *)
+(count=4)
+
+(* Runtime enviorment *)
+(runTimeEnvironment = "ENV/GPU")
+
+(* Grid log folder *)
+(gmlog=gridlog)
